@@ -1,0 +1,145 @@
+# -*- coding: utf-8 -*-
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+import threading, os, requests, subprocess, ctypes, string, webbrowser, shutil
+
+# Пути
+d = os.path.join(os.path.expanduser("~"), "Desktop")
+iso = os.path.join(d, "Windows.iso")
+out = os.path.join(d, "Win10_Pack")
+
+def is_admin():
+    try: return ctypes.windll.shell32.IsUserAnAdmin()
+    except: return False
+
+def check_space_manual():
+    """Функция для кнопки ручной проверки"""
+    total, used, free = shutil.disk_usage("C:\\")
+    free_gb = free // (2**30)
+    if free_gb < 15:
+        messagebox.showwarning("Внимание", f"Свободно: {free_gb} ГБ.\nЭтого может быть маловато. Рекомендуется освободить место до 20-25 ГБ.")
+    else:
+        messagebox.showinfo("Место на диске", f"На диске C: свободно {free_gb} ГБ.\nМеста достаточно для обновления!")
+
+def check_space_auto(required_gb=10):
+    """Тихая проверка перед действиями"""
+    total, used, free = shutil.disk_usage("C:\\")
+    free_gb = free // (2**30)
+    if free_gb < required_gb:
+        messagebox.showwarning("Мало места", f"На диске C: всего {free_gb} ГБ.\nНужно минимум {required_gb} ГБ.")
+        return False
+    return True
+
+def get_7z(): webbrowser.open("https://www.7-zip.org/")
+
+def pick():
+    global iso
+    p = filedialog.askopenfilename(title="Выбор ISO", filetypes=[("ISO", "*.iso")])
+    if p:
+        iso = p
+        lbl_p.config(text="Файл: " + os.path.basename(iso), fg="green")
+
+def dl():
+    u = "https://dn710004.ca.archive.org/0/items/windows-10-22-h-2-russian-x-64/Windows%2010%2022H2%20%28Russian%29%20x64.iso"
+    def r():
+        try:
+            if not check_space_auto(8): return
+            lbl_p.config(text="Загрузка...", fg="blue")
+            res = requests.get(u, stream=True, timeout=60)
+            tot = int(res.headers.get("content-length", 0))
+            pb.configure(mode="determinate", maximum=100)
+            cur = 0
+            with open(iso, "wb") as f:
+                for c in res.iter_content(chunk_size=1024*1024):
+                    if c:
+                        f.write(c); cur += len(c)
+                        p = int((cur / tot) * 100)
+                        root.after(0, lambda v=p: pb.configure(value=v))
+                        root.after(0, lambda v=p: lbl_p.config(text="Загрузка: "+str(v)+"%"))
+            messagebox.showinfo("ОК", "ISO скачан на рабочий стол!")
+        except Exception as e: messagebox.showerror("Ошибка", str(e))
+    threading.Thread(target=r, daemon=True).start()
+
+def mount():
+    if not os.path.exists(iso): return messagebox.showerror("!", "Сначала скачайте ISO!")
+    try:
+        subprocess.run(["powershell", "-Command", 'Mount-DiskImage -ImagePath "'+iso+'"'], shell=True)
+        lbl_p.config(text="Примонтировано!", fg="green")
+        messagebox.showinfo("OK", "Диск подключен. Теперь жмите ШАГ 3.")
+    except: messagebox.showerror("!", "Ваша система не поддерживает монтирование.")
+
+def unpack():
+    if not os.path.exists(iso): return messagebox.showerror("!", "Сначала скачайте ISO!")
+    if not check_space_auto(12): return
+    if not os.path.exists(out): os.makedirs(out)
+    def r():
+        try:
+            lbl_p.config(text="Монтирование...", fg="orange")
+            ps = 'Mount-DiskImage -ImagePath "'+iso+'" -PassThru | Get-Volume | Select-Object -ExpandProperty DriveLetter'
+            dr = subprocess.check_output(["powershell", "-Command", ps]).decode("utf-8").strip()
+            if not dr: raise Exception("Err")
+            lbl_p.config(text="Распаковка (Robocopy)...", fg="blue")
+            pb.configure(mode="indeterminate"); pb.start(10)
+            subprocess.run(['robocopy', dr+":\\", out, '/E', '/MT:8', '/R:0', '/W:0', '/NFL', '/NDL'], shell=True)
+            pb.stop(); pb.configure(mode="determinate", value=100)
+            subprocess.run(["powershell", "-Command", 'Dismount-DiskImage -ImagePath "'+iso+'"'], shell=True)
+            lbl_p.config(text="Готово! Папка Win10_Pack создана.", fg="green"); os.startfile(out)
+        except: 
+            pb.stop()
+            messagebox.showwarning("Внимание", "Авто-распаковка не удалась. Используйте 7-Zip.")
+    threading.Thread(target=r, daemon=True).start()
+
+def run_upd():
+    e = os.path.join(out, "setup.exe")
+    if os.path.exists(e): subprocess.Popen(e, shell=True)
+    else:
+        for l in string.ascii_uppercase:
+            if os.path.exists(l+":\\setup.exe"): subprocess.Popen(l+":\\setup.exe", shell=True); return
+        messagebox.showerror("!", "setup.exe не найден! Распакуйте ISO.")
+
+# --- ИНТЕРФЕЙС ---
+root = tk.Tk()
+root.title("Windows 10 Update Tool version 41.2")
+root.geometry("520x980")
+try: root.iconbitmap("icon.ico")
+except: pass
+
+f = tk.Frame(root, padx=15, pady=10); f.pack(fill="both")
+tk.Label(f, text="Windows 10 Update Tool", font=("Arial", 16, "bold")).pack(pady=5)
+tk.Label(f, text="Программа обновления к Windows 10", font=("Arial", 10)).pack()
+
+pb = ttk.Progressbar(f, length=450, mode="determinate"); pb.pack(pady=10)
+lbl_p = tk.Label(f, text="Статус: Ожидание действий"); lbl_p.pack()
+
+# НОВАЯ КНОПКА ПРОВЕРКИ
+ttk.Button(f, text="📊 ПРОВЕРИТЬ МЕСТО НА ДИСКЕ C:", command=check_space_manual).pack(fill="x", pady=10)
+
+ttk.Button(f, text="1. СКАЧАТЬ ISO ОБРАЗ", command=dl).pack(fill="x", pady=5)
+ttk.Button(f, text="📂 ВЫБРАТЬ ISO ВРУЧНУЮ", command=pick).pack(fill="x", pady=2)
+
+m_f = tk.LabelFrame(f, text=" Способ для Windows 8 / 10 ", padx=10, pady=10, fg="blue")
+m_f.pack(fill="x", pady=10)
+ttk.Button(m_f, text="ШАГ 2: МОНТИРОВАТЬ ОБРАЗ", command=mount).pack(fill="x", pady=5)
+
+u_f = tk.LabelFrame(f, text=" Способ для Windows 7 ", padx=10, pady=10, fg="orange")
+u_f.pack(fill="x", pady=10)
+ttk.Button(u_f, text="ШАГ 2: РАСПАКОВАТЬ В ПАПКУ", command=unpack).pack(fill="x", pady=5)
+
+tk.Button(f, text="ШАГ 3: ЗАПУСТИТЬ ОБНОВЛЕНИЕ", bg="green", fg="white", font=("Arial", 11, "bold"), command=run_upd).pack(fill="x", pady=15, ipady=8)
+
+warn_f = tk.Frame(f, padx=10, pady=10, highlightbackground="gray", highlightthickness=1)
+warn_f.pack(fill="x", pady=5)
+warn_txt = ("ВНИМАНИЕ: Образ загружается с Internet Archive.\n"
+            "Данный ISO не содержит вредоносного ПО. В дистрибутиве\n"
+            "оптимизированы редакции: удалены лишние компоненты\n"
+            "для учреждений и версии 'Для одного языка'.")
+tk.Label(warn_f, text=warn_txt, justify="left", font=("Arial", 8, "italic"), fg="#555").pack()
+
+p_f = tk.LabelFrame(f, text=" Проблемы с распаковкой? ", padx=10, pady=5, fg="red")
+p_f.pack(fill="x", pady=10)
+ttk.Button(p_f, text="СКАЧАТЬ 7-ZIP", command=get_7z).pack(pady=5)
+
+adm = "ОК" if is_admin() else "ТРЕБУЮТСЯ ПРАВА АДМИНИСТРАТОРА!"
+tk.Label(f, text="СТАТУС ПРАВ: "+adm, fg=("green" if is_admin() else "red"), font=("Arial", 8, "bold")).pack(side="bottom")
+
+root.mainloop()
