@@ -1,6 +1,6 @@
 #Region ; **** Directives created by AutoIt3Wrapper_GUI ****
 #AutoIt3Wrapper_Icon=shell32.dll|-155
-#AutoIt3Wrapper_Outfile=Win10_Ultimate_Deployer_Final.exe
+#AutoIt3Wrapper_Outfile=Win10_Ultimate_Deployer_v42.9.exe
 #AutoIt3Wrapper_Res_RequestedExecutionLevel=highestAvailable
 #EndRegion ; **** End of Directives ****
 
@@ -18,7 +18,7 @@ Global $ISO_PATH = ""
 Global $EXTRACT_DIR = @DesktopDir & "\Win10_Files"
 
 ; --- UI ---
-$hGUI = GUICreate("Win10 Universal Deployer", 450, 780) ; Чуть увеличил высоту для новой кнопки
+$hGUI = GUICreate("Win10 Universal Deployer v42.9", 450, 850) ; Увеличил высоту под 3 кнопки запуска
 GUISetBkColor(0xF0F0F0)
 
 GUICtrlCreateLabel("Windows 10 Setup Tool", 10, 20, 430, 30, $SS_CENTER)
@@ -46,18 +46,22 @@ $btnMount = GUICtrlCreateButton("MOUNT ISO (Win 8+)", 35, 415, 380, 35)
 $btnExtract = GUICtrlCreateButton("EXTRACT TO FOLDER", 35, 455, 380, 40)
 GUICtrlCreateGroup("", -99, -99, 1, 1)
 
-; Группа 4: ЗАПУСК (Раздельный)
-GUICtrlCreateGroup(" Step 3: Start Installation ", 15, 515, 420, 160)
-$btnRunFolder = GUICtrlCreateButton("RUN FROM EXTRACTED FOLDER (Win 7)", 35, 540, 380, 50)
-GUICtrlSetFont(-1, 10, 800)
+; Группа 4: ЗАПУСК (3 Варианта)
+GUICtrlCreateGroup(" Step 3: Start Installation ", 15, 515, 420, 240)
+$btnRunFolder = GUICtrlCreateButton("RUN NORMAL SETUP (setup.exe)", 35, 540, 380, 45)
+GUICtrlSetFont(-1, 9, 800)
+GUICtrlSetBkColor(-1, 0xADD8E6) ; Голубой
+
+$btnRunSources = GUICtrlCreateButton("RUN SKIP KEY SETUP (sources\setup.exe)", 35, 595, 380, 45)
+GUICtrlSetFont(-1, 9, 800)
 GUICtrlSetBkColor(-1, 0x90EE90) ; Светло-зеленый
 
-$btnRunMount = GUICtrlCreateButton("RUN FROM MOUNTED DRIVE (Win 8/10)", 35, 605, 380, 50)
-GUICtrlSetFont(-1, 10, 800)
-GUICtrlSetBkColor(-1, 0x00FF00) ; Ярко-зеленый
+$btnRunMount = GUICtrlCreateButton("RUN FROM MOUNTED DRIVE (Win 8/10)", 35, 650, 380, 45)
+GUICtrlSetFont(-1, 9, 800)
+GUICtrlSetBkColor(-1, 0x00FF00) ; Зеленый
 GUICtrlCreateGroup("", -99, -99, 1, 1)
 
-$Status = GUICtrlCreateLabel("Status: Ready", 10, 690, 430, 25, $SS_CENTER)
+$Status = GUICtrlCreateLabel("Status: Ready", 10, 780, 430, 25, $SS_CENTER)
 GUICtrlSetFont(-1, 10, 600)
 
 GUISetState(@SW_SHOW)
@@ -82,7 +86,9 @@ While 1
         Case $btnExtract
             _DoExtract()
         Case $btnRunFolder
-            _StartFromFolder()
+            _StartNormal()
+        Case $btnRunSources
+            _StartSources()
         Case $btnRunMount
             _StartFromMount()
     EndSwitch
@@ -90,12 +96,23 @@ WEnd
 
 ; --- ФУНКЦИИ ЗАПУСКА ---
 
-Func _StartFromFolder()
-    If FileExists($EXTRACT_DIR & "\setup.exe") Then
-        GUICtrlSetData($Status, "Status: Starting Setup from Folder...")
-        ShellExecute($EXTRACT_DIR & "\setup.exe")
+Func _StartNormal()
+    Local $sFile = $EXTRACT_DIR & "\setup.exe"
+    If FileExists($sFile) Then
+        GUICtrlSetData($Status, "Status: Starting Normal Setup...")
+        ShellExecute($sFile)
     Else
-        MsgBox(48, "Error", "Папка с файлами не найдена! Сначала нажмите EXTRACT.")
+        MsgBox(48, "Error", "Файл setup.exe не найден! Сначала нажмите EXTRACT.")
+    EndIf
+EndFunc
+
+Func _StartSources()
+    Local $sFile = $EXTRACT_DIR & "\sources\setup.exe"
+    If FileExists($sFile) Then
+        GUICtrlSetData($Status, "Status: Starting Skip Key Setup...")
+        ShellExecute($sFile)
+    Else
+        MsgBox(48, "Error", "Файл sources\setup.exe не найден!")
     EndIf
 EndFunc
 
@@ -104,21 +121,22 @@ Func _StartFromMount()
     Local $found = False
     If Not @error Then
         For $i = 1 To $aDrives[0]
-            If FileExists($aDrives[$i] & "\setup.exe") Then
-                GUICtrlSetData($Status, "Status: Starting from Drive " & StringUpper($aDrives[$i]))
+            ; В первую очередь пробуем запустить sources с диска для обхода ключа
+            If FileExists($aDrives[$i] & "\sources\setup.exe") Then
+                ShellExecute($aDrives[$i] & "\sources\setup.exe")
+                $found = True
+                ExitLoop
+            ElseIf FileExists($aDrives[$i] & "\setup.exe") Then
                 ShellExecute($aDrives[$i] & "\setup.exe")
                 $found = True
                 ExitLoop
             EndIf
         Next
     EndIf
-
-    If Not $found Then
-        MsgBox(48, "Error", "Смонтированный диск не найден! Сначала нажмите MOUNT (только для Win 8+).")
-    EndIf
+    If Not $found Then MsgBox(48, "Error", "Смонтированный диск не найден!")
 EndFunc
 
-; --- ВСЕ ОСТАЛЬНЫЕ ФУНКЦИИ (БЕЗ ИЗМЕНЕНИЙ) ---
+; --- ВСЕ ОСТАЛЬНЫЕ ФУНКЦИИ ---
 
 Func _DoManualSelect()
     Local $f = FileOpenDialog("Select ISO", @HomeDrive, "ISO Files (*.iso)")
