@@ -18,7 +18,7 @@ Features:
 
 Disclaimer / Legal Note:
 
-The author is not responsible for the ISO image. The tool provides a technical way to download the file from a legal public repository (Internet Archive). All rights belong to the respective owners.
+The author is not responsible for the ISO image. The tool provides a technical way to download the file from a legal public repository (Internet Archive). All rights belong to the respective owners.⚠️ Use the program at your own risk. If you decide to update your system, you take responsibility for the update.⚠️
 
 Описание на русском
 
@@ -37,4 +37,4 @@ The author is not responsible for the ISO image. The tool provides a technical w
 
 Отказ от ответственности:
 
-Автор данной утилиты не несет ответственности за содержимое ISO-образа. Программа лишь предоставляет возможность загрузки файла из легального публичного источника (Internet Archive). Все права на ПО принадлежат правообладателю. Используйте лицензионный ключ для активации.
+Автор данной утилиты не несет ответственности за содержимое ISO-образа. Программа лишь предоставляет возможность загрузки файла из легального публичного источника (Internet Archive). Все права на ПО принадлежат правообладателю. Используйте лицензионный ключ для активации. ⚠️ используйте программу на свой риск если вы решили обнвить свою систему вы берете ответственность за обновление на себя⚠️
